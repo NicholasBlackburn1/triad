@@ -28,6 +28,7 @@
   #include <netinet/tcp.h>
   #include <arpa/inet.h>
 #endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1016,12 +1017,14 @@ int dyad_connect(dyad_Stream *stream, const char *host, int port) {
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
+
   sprintf(buf, "%d", port);
   err = getaddrinfo(host, buf, &hints, &ai);
   if (err) {
-    stream_error(stream, "could not resolve host", 0);
+    stream_error(stream, gai_strerror(err), 0);
     goto fail;
   }
+
   /* Start connecting */
   err = stream_initSocket(stream, ai->ai_family, ai->ai_socktype,
                           ai->ai_protocol);
