@@ -37,9 +37,9 @@
 #include <errno.h>
 #include <limits.h>
 
-#include "dyad.h"
+#include "triad.h"
 
-#define DYAD_VERSION "0.2.1"
+#define triad_VERSION "0.3.0"
 
 
 #ifdef _WIN32
@@ -84,7 +84,7 @@
 
 static void panic(const char *fmt, ...);
 
-static void *dyad_realloc(void *ptr, int n) {
+static void *triad_realloc(void *ptr, int n) {
   ptr = realloc(ptr, n);
   if (!ptr && n != 0) {
     panic("out of memory");
@@ -93,7 +93,7 @@ static void *dyad_realloc(void *ptr, int n) {
 }
 
 
-static void dyad_free(void *ptr) {
+static void triad_free(void *ptr) {
   free(ptr);
 }
 
@@ -109,7 +109,7 @@ static void vec_expand(char **data, int *length, int *capacity, int memsz) {
     } else {
       *capacity <<= 1;
     }
-    *data = dyad_realloc(*data, *capacity * memsz);
+    *data = triad_realloc(*data, *capacity * memsz);
   }
 }
 
@@ -136,7 +136,7 @@ static void vec_splice(
 
 
 #define vec_deinit(v)\
-  dyad_free((v)->data)
+  triad_free((v)->data)
 
 
 #define vec_clear(v)\
@@ -181,17 +181,17 @@ enum {
 
 typedef struct {
   int capacity;
-  dyad_Socket maxfd;
+  triad_Socket maxfd;
   fd_set *fds[SELECT_MAX];
 } SelectSet;
 
-#define DYAD_UNSIGNED_BIT (sizeof(unsigned) * CHAR_BIT)
+#define triad_UNSIGNED_BIT (sizeof(unsigned) * CHAR_BIT)
 
 
 static void select_deinit(SelectSet *s) {
   int i;
   for (i = 0; i < SELECT_MAX; i++) {
-    dyad_free(s->fds[i]);
+    triad_free(s->fds[i]);
     s->fds[i] = NULL;
   }
   s->capacity = 0;
@@ -203,7 +203,7 @@ static void select_grow(SelectSet *s) {
   int oldCapacity = s->capacity;
   s->capacity = s->capacity ? s->capacity << 1 : 1;
   for (i = 0; i < SELECT_MAX; i++) {
-    s->fds[i] = dyad_realloc(s->fds[i], s->capacity * sizeof(fd_set));
+    s->fds[i] = triad_realloc(s->fds[i], s->capacity * sizeof(fd_set));
     memset(s->fds[i] + oldCapacity, 0,
            (s->capacity - oldCapacity) * sizeof(fd_set));
   }
@@ -224,7 +224,7 @@ static void select_zero(SelectSet *s) {
 }
 
 
-static void select_add(SelectSet *s, int set, dyad_Socket fd) {
+static void select_add(SelectSet *s, int set, triad_Socket fd) {
 #ifdef _WIN32
   fd_set *f;
   if (s->capacity == 0) select_grow(s);
@@ -239,13 +239,13 @@ static void select_add(SelectSet *s, int set, dyad_Socket fd) {
     select_grow(s);
   }
   p = (unsigned*) s->fds[set];
-  p[fd / DYAD_UNSIGNED_BIT] |= 1 << (fd % DYAD_UNSIGNED_BIT);
+  p[fd / triad_UNSIGNED_BIT] |= 1 << (fd % triad_UNSIGNED_BIT);
   if (fd > s->maxfd) s->maxfd = fd;
 #endif
 }
 
 
-static int select_has(SelectSet *s, int set, dyad_Socket fd) {
+static int select_has(SelectSet *s, int set, triad_Socket fd) {
 #ifdef _WIN32
   unsigned i;
   fd_set *f;
@@ -261,7 +261,7 @@ static int select_has(SelectSet *s, int set, dyad_Socket fd) {
   unsigned *p;
   if (s->maxfd < fd) return 0;
   p = (unsigned*) s->fds[set];
-  return p[fd / DYAD_UNSIGNED_BIT] & (1 << (fd % DYAD_UNSIGNED_BIT));
+  return p[fd / triad_UNSIGNED_BIT] & (1 << (fd % triad_UNSIGNED_BIT));
 #endif
 }
 
@@ -272,14 +272,14 @@ static int select_has(SelectSet *s, int set, dyad_Socket fd) {
 
 typedef struct {
   int event;
-  dyad_Callback callback;
+  triad_Callback callback;
   void *udata;
 } Listener;
 
 
-struct dyad_Stream {
+struct triad_Stream {
   int state, flags;
-  dyad_Socket sockfd;
+  triad_Socket sockfd;
   char *address;
   int port;
   int bytesSent, bytesReceived;
@@ -287,52 +287,52 @@ struct dyad_Stream {
   Vec(Listener) listeners;
   Vec(char) lineBuffer;
   Vec(char) writeBuffer;
-  dyad_Stream *next;
+  triad_Stream *next;
 };
 
-#define DYAD_FLAG_READY   (1 << 0)
-#define DYAD_FLAG_WRITTEN (1 << 1)
+#define triad_FLAG_READY   (1 << 0)
+#define triad_FLAG_WRITTEN (1 << 1)
 
 
-static dyad_Stream *dyad_streams;
-static int dyad_streamCount;
-static char dyad_panicMsgBuffer[128];
-static dyad_PanicCallback panicCallback;
-static SelectSet dyad_selectSet;
-static double dyad_updateTimeout = 1;
-static double dyad_tickInterval = 1;
-static double dyad_lastTick = 0;
+static triad_Stream *triad_streams;
+static int triad_streamCount;
+static char triad_panicMsgBuffer[128];
+static triad_PanicCallback panicCallback;
+static SelectSet triad_selectSet;
+static double triad_updateTimeout = 1;
+static double triad_tickInterval = 1;
+static double triad_lastTick = 0;
 
 
 static void panic(const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  vsprintf(dyad_panicMsgBuffer, fmt, args);
+  vsprintf(triad_panicMsgBuffer, fmt, args);
   va_end(args);
   if (panicCallback) {
-    panicCallback(dyad_panicMsgBuffer);
+    panicCallback(triad_panicMsgBuffer);
   } else {
-    printf("dyad panic: %s\n", dyad_panicMsgBuffer);
+    printf("triad panic: %s\n", triad_panicMsgBuffer);
   }
   exit(EXIT_FAILURE);
 }
 
 
-static dyad_Event createEvent(int type) {
-  dyad_Event e;
+static triad_Event createEvent(int type) {
+  triad_Event e;
   memset(&e, 0, sizeof(e));
   e.type = type;
   return e;
 }
 
 
-static void stream_destroy(dyad_Stream *stream);
+static void stream_destroy(triad_Stream *stream);
 
 static void destroyClosedStreams(void) {
-  dyad_Stream *stream = dyad_streams;
+  triad_Stream *stream = triad_streams;
   while (stream) {
-    if (stream->state == DYAD_STATE_CLOSED) {
-      dyad_Stream *next = stream->next;
+    if (stream->state == triad_STATE_CLOSED) {
+      triad_Stream *next = stream->next;
       stream_destroy(stream);
       stream = next;
     } else {
@@ -342,39 +342,39 @@ static void destroyClosedStreams(void) {
 }
 
 
-static void stream_emitEvent(dyad_Stream *stream, dyad_Event *e);
+static void stream_emitEvent(triad_Stream *stream, triad_Event *e);
 
 static void updateTickTimer(void) {
   /* Update tick timer */
-  if (dyad_lastTick == 0) {
-    dyad_lastTick = dyad_getTime();
+  if (triad_lastTick == 0) {
+    triad_lastTick = triad_getTime();
   }
-  while (dyad_lastTick < dyad_getTime()) {
+  while (triad_lastTick < triad_getTime()) {
     /* Emit event on all streams */
-    dyad_Stream *stream;
-    dyad_Event e = createEvent(DYAD_EVENT_TICK);
+    triad_Stream *stream;
+    triad_Event e = createEvent(triad_EVENT_TICK);
     e.msg = "a tick has occured";
-    stream = dyad_streams;
+    stream = triad_streams;
     while (stream) {
       stream_emitEvent(stream, &e);
       stream = stream->next;
     }
-    dyad_lastTick += dyad_tickInterval;
+    triad_lastTick += triad_tickInterval;
   }
 }
 
 
 static void updateStreamTimeouts(void) {
-  double currentTime = dyad_getTime();
-  dyad_Stream *stream;
-  dyad_Event e = createEvent(DYAD_EVENT_TIMEOUT);
+  double currentTime = triad_getTime();
+  triad_Stream *stream;
+  triad_Event e = createEvent(triad_EVENT_TIMEOUT);
   e.msg = "stream timed out";
-  stream = dyad_streams;
+  stream = triad_streams;
   while (stream) {
     if (stream->timeout) {
       if (currentTime - stream->lastActivity > stream->timeout) {
         stream_emitEvent(stream, &e);
-        dyad_close(stream);
+        triad_close(stream);
       }
     }
     stream = stream->next;
@@ -387,34 +387,34 @@ static void updateStreamTimeouts(void) {
 /* Stream                                                                    */
 /*===========================================================================*/
 
-static void stream_destroy(dyad_Stream *stream) {
-  dyad_Event e;
-  dyad_Stream **next;
+static void stream_destroy(triad_Stream *stream) {
+  triad_Event e;
+  triad_Stream **next;
   /* Close socket */
   if (stream->sockfd != INVALID_SOCKET) {
     close(stream->sockfd);
   }
   /* Emit destroy event */
-  e = createEvent(DYAD_EVENT_DESTROY);
+  e = createEvent(triad_EVENT_DESTROY);
   e.msg = "the stream has been destroyed";
   stream_emitEvent(stream, &e);
   /* Remove from list and decrement count */
-  next = &dyad_streams;
+  next = &triad_streams;
   while (*next != stream) {
     next = &(*next)->next;
   }
   *next = stream->next;
-  dyad_streamCount--;
+  triad_streamCount--;
   /* Destroy and free */
   vec_deinit(&stream->listeners);
   vec_deinit(&stream->lineBuffer);
   vec_deinit(&stream->writeBuffer);
-  dyad_free(stream->address);
-  dyad_free(stream);
+  triad_free(stream->address);
+  triad_free(stream);
 }
 
 
-static void stream_emitEvent(dyad_Stream *stream, dyad_Event *e) {
+static void stream_emitEvent(triad_Stream *stream, triad_Event *e) {
   int i;
   e->stream = stream;
   for (i = 0; i < stream->listeners.length; i++) {
@@ -432,9 +432,9 @@ static void stream_emitEvent(dyad_Stream *stream, dyad_Event *e) {
 }
 
 
-static void stream_error(dyad_Stream *stream, const char *msg, int err) {
+static void stream_error(triad_Stream *stream, const char *msg, int err) {
   char buf[256];
-  dyad_Event e = createEvent(DYAD_EVENT_ERROR);
+  triad_Event e = createEvent(triad_EVENT_ERROR);
   if (err) {
     sprintf(buf, "%.160s (%.80s)", msg, strerror(err));
     e.msg = buf;
@@ -442,17 +442,17 @@ static void stream_error(dyad_Stream *stream, const char *msg, int err) {
     e.msg = msg;
   }
   stream_emitEvent(stream, &e);
-  dyad_close(stream);
+  triad_close(stream);
 }
 
 
-static void stream_initAddress(dyad_Stream *stream) {
+static void stream_initAddress(triad_Stream *stream) {
   union { struct sockaddr sa; struct sockaddr_storage sas;
           struct sockaddr_in sai; struct sockaddr_in6 sai6; } addr;
   socklen_t size;
   memset(&addr, 0, sizeof(addr));
   size = sizeof(addr);
-  dyad_free(stream->address);
+  triad_free(stream->address);
   stream->address = NULL;
   if (getpeername(stream->sockfd, &addr.sa, &size) == -1) {
     if (getsockname(stream->sockfd, &addr.sa, &size) == -1) {
@@ -460,19 +460,19 @@ static void stream_initAddress(dyad_Stream *stream) {
     }
   }
   if (addr.sas.ss_family == AF_INET6) {
-    stream->address = dyad_realloc(NULL, INET6_ADDRSTRLEN);
+    stream->address = triad_realloc(NULL, INET6_ADDRSTRLEN);
     inet_ntop(AF_INET6, &addr.sai6.sin6_addr, stream->address,
               INET6_ADDRSTRLEN);
     stream->port = ntohs(addr.sai6.sin6_port);
   } else {
-    stream->address = dyad_realloc(NULL, INET_ADDRSTRLEN);
+    stream->address = triad_realloc(NULL, INET_ADDRSTRLEN);
     inet_ntop(AF_INET, &addr.sai.sin_addr, stream->address, INET_ADDRSTRLEN);
     stream->port = ntohs(addr.sai.sin_port);
   }
 }
 
 
-static void stream_setSocketNonBlocking(dyad_Stream *stream, int opt) {
+static void stream_setSocketNonBlocking(triad_Stream *stream, int opt) {
 #ifdef _WIN32
   u_long mode = opt;
   ioctlsocket(stream->sockfd, FIONBIO, &mode);
@@ -484,7 +484,7 @@ static void stream_setSocketNonBlocking(dyad_Stream *stream, int opt) {
 }
 
 
-static void stream_setSocket(dyad_Stream *stream, dyad_Socket sockfd) {
+static void stream_setSocket(triad_Stream *stream, triad_Socket sockfd) {
   stream->sockfd = sockfd;
   stream_setSocketNonBlocking(stream, 1);
   stream_initAddress(stream);
@@ -492,7 +492,7 @@ static void stream_setSocket(dyad_Stream *stream, dyad_Socket sockfd) {
 
 
 static int stream_initSocket(
-  dyad_Stream *stream, int domain, int type, int protocol
+  triad_Stream *stream, int domain, int type, int protocol
 ) {
   stream->sockfd = socket(domain, type, protocol);
   if (stream->sockfd == INVALID_SOCKET) {
@@ -504,7 +504,7 @@ static int stream_initSocket(
 }
 
 
-static int stream_hasListenerForEvent(dyad_Stream *stream, int event) {
+static int stream_hasListenerForEvent(triad_Stream *stream, int event) {
   int i;
   for (i = 0; i < stream->listeners.length; i++) {
     Listener *listener = &stream->listeners.data[i];
@@ -516,16 +516,16 @@ static int stream_hasListenerForEvent(dyad_Stream *stream, int event) {
 }
 
 
-static void stream_handleReceivedData(dyad_Stream *stream) {
+static void stream_handleReceivedData(triad_Stream *stream) {
   for (;;) {
     /* Receive data */
-    dyad_Event e;
+    triad_Event e;
     char data[8192];
     int size = recv(stream->sockfd, data, sizeof(data) - 1, 0);
     if (size <= 0) {
       if (size == 0 || errno != EWOULDBLOCK) {
         /* Handle disconnect */
-        dyad_close(stream);
+        triad_close(stream);
         return;
       } else {
         /* No more data */
@@ -535,21 +535,21 @@ static void stream_handleReceivedData(dyad_Stream *stream) {
     data[size] = 0;
     /* Update status */
     stream->bytesReceived += size;
-    stream->lastActivity = dyad_getTime();
+    stream->lastActivity = triad_getTime();
     /* Emit data event */
-    e = createEvent(DYAD_EVENT_DATA);
+    e = createEvent(triad_EVENT_DATA);
     e.msg = "received data";
     e.data = data;
     e.size = size;
     stream_emitEvent(stream, &e);
     /* Check stream state in case it was closed during one of the data event
      * handlers. */
-    if (stream->state != DYAD_STATE_CONNECTED) {
+    if (stream->state != triad_STATE_CONNECTED) {
       return;
     }
 
     /* Handle line event */
-    if (stream_hasListenerForEvent(stream, DYAD_EVENT_LINE)) {
+    if (stream_hasListenerForEvent(stream, triad_EVENT_LINE)) {
       int i, start;
       char *buf;
       for (i = 0; i < size; i++) {
@@ -559,9 +559,9 @@ static void stream_handleReceivedData(dyad_Stream *stream) {
       buf = stream->lineBuffer.data;
       for (i = 0; i < stream->lineBuffer.length; i++) {
         if (buf[i] == '\n') {
-          dyad_Event e;
+          triad_Event e;
           buf[i] = '\0';
-          e = createEvent(DYAD_EVENT_LINE);
+          e = createEvent(triad_EVENT_LINE);
           e.msg = "received line";
           e.data = &buf[start];
           e.size = i - start;
@@ -573,7 +573,7 @@ static void stream_handleReceivedData(dyad_Stream *stream) {
           start = i + 1;
           /* Check stream state in case it was closed during one of the line
            * event handlers. */
-          if (stream->state != DYAD_STATE_CONNECTED) {
+          if (stream->state != triad_STATE_CONNECTED) {
             return;
           }
         }
@@ -588,12 +588,12 @@ static void stream_handleReceivedData(dyad_Stream *stream) {
 }
 
 
-static void stream_acceptPendingConnections(dyad_Stream *stream) {
+static void stream_acceptPendingConnections(triad_Stream *stream) {
   for (;;) {
-    dyad_Stream *remote;
-    dyad_Event e;
+    triad_Stream *remote;
+    triad_Event e;
     int err = 0;
-    dyad_Socket sockfd = accept(stream->sockfd, NULL, NULL);
+    triad_Socket sockfd = accept(stream->sockfd, NULL, NULL);
     if (sockfd == INVALID_SOCKET) {
       err = errno;
       if (err == EWOULDBLOCK) {
@@ -602,12 +602,12 @@ static void stream_acceptPendingConnections(dyad_Stream *stream) {
       }
     }
     /* Create client stream */
-    remote = dyad_newStream();
-    remote->state = DYAD_STATE_CONNECTED;
+    remote = triad_newStream();
+    remote->state = triad_STATE_CONNECTED;
     /* Set stream's socket */
     stream_setSocket(remote, sockfd);
     /* Emit accept event */
-    e = createEvent(DYAD_EVENT_ACCEPT);
+    e = createEvent(triad_EVENT_ACCEPT);
     e.msg = "accepted connection";
     e.remote = remote;
     stream_emitEvent(stream, &e);
@@ -621,8 +621,8 @@ static void stream_acceptPendingConnections(dyad_Stream *stream) {
 }
 
 
-static int stream_flushWriteBuffer(dyad_Stream *stream) {
-  stream->flags &= ~DYAD_FLAG_WRITTEN;
+static int stream_flushWriteBuffer(triad_Stream *stream) {
+  stream->flags &= ~triad_FLAG_WRITTEN;
   if (stream->writeBuffer.length > 0) {
     /* Send data */
     int size = send(stream->sockfd, stream->writeBuffer.data,
@@ -633,7 +633,7 @@ static int stream_flushWriteBuffer(dyad_Stream *stream) {
         return 0;
       } else {
         /* Handle disconnect */
-        dyad_close(stream);
+        triad_close(stream);
         return 0;
       }
     }
@@ -644,19 +644,19 @@ static int stream_flushWriteBuffer(dyad_Stream *stream) {
     }
     /* Update status */
     stream->bytesSent += size;
-    stream->lastActivity = dyad_getTime();
+    stream->lastActivity = triad_getTime();
   }
 
   if (stream->writeBuffer.length == 0) {
-    dyad_Event e;
+    triad_Event e;
     /* If this is a 'closing' stream we can properly close it now */
-    if (stream->state == DYAD_STATE_CLOSING) {
-      dyad_close(stream);
+    if (stream->state == triad_STATE_CLOSING) {
+      triad_close(stream);
       return 0;
     }
     /* Set ready flag and emit 'ready for data' event */
-    stream->flags |= DYAD_FLAG_READY;
-    e = createEvent(DYAD_EVENT_READY);
+    stream->flags |= triad_FLAG_READY;
+    e = createEvent(triad_EVENT_READY);
     e.msg = "stream is ready for more data";
     stream_emitEvent(stream, &e);
   }
@@ -675,8 +675,8 @@ static int stream_flushWriteBuffer(dyad_Stream *stream) {
 /* Core                                                                      */
 /*---------------------------------------------------------------------------*/
 
-void dyad_update(void) {
-  dyad_Stream *stream;
+void triad_update(void) {
+  triad_Stream *stream;
   struct timeval tv;
 
   destroyClosedStreams();
@@ -684,28 +684,28 @@ void dyad_update(void) {
   updateStreamTimeouts();
 
   /* Create fd sets for select() */
-  select_zero(&dyad_selectSet);
+  select_zero(&triad_selectSet);
 
-  stream = dyad_streams;
+  stream = triad_streams;
   while (stream) {
     switch (stream->state) {
-      case DYAD_STATE_CONNECTED:
-        select_add(&dyad_selectSet, SELECT_READ, stream->sockfd);
-        if (!(stream->flags & DYAD_FLAG_READY) ||
+      case triad_STATE_CONNECTED:
+        select_add(&triad_selectSet, SELECT_READ, stream->sockfd);
+        if (!(stream->flags & triad_FLAG_READY) ||
             stream->writeBuffer.length != 0
         ) {
-          select_add(&dyad_selectSet, SELECT_WRITE, stream->sockfd);
+          select_add(&triad_selectSet, SELECT_WRITE, stream->sockfd);
         }
         break;
-      case DYAD_STATE_CLOSING:
-        select_add(&dyad_selectSet, SELECT_WRITE, stream->sockfd);
+      case triad_STATE_CLOSING:
+        select_add(&triad_selectSet, SELECT_WRITE, stream->sockfd);
         break;
-      case DYAD_STATE_CONNECTING:
-        select_add(&dyad_selectSet, SELECT_WRITE, stream->sockfd);
-        select_add(&dyad_selectSet, SELECT_EXCEPT, stream->sockfd);
+      case triad_STATE_CONNECTING:
+        select_add(&triad_selectSet, SELECT_WRITE, stream->sockfd);
+        select_add(&triad_selectSet, SELECT_EXCEPT, stream->sockfd);
         break;
-      case DYAD_STATE_LISTENING:
-        select_add(&dyad_selectSet, SELECT_READ, stream->sockfd);
+      case triad_STATE_LISTENING:
+        select_add(&triad_selectSet, SELECT_READ, stream->sockfd);
         break;
     }
     stream = stream->next;
@@ -718,56 +718,56 @@ void dyad_update(void) {
      * because the type of timeval's fields don't agree across platforms */
     #pragma warning(disable: 4244)
   #endif
-  tv.tv_sec = dyad_updateTimeout;
-  tv.tv_usec = (dyad_updateTimeout - tv.tv_sec) * 1e6;
+  tv.tv_sec = triad_updateTimeout;
+  tv.tv_usec = (triad_updateTimeout - tv.tv_sec) * 1e6;
   #ifdef _MSC_VER
     #pragma warning(pop)
   #endif
 
-  select(dyad_selectSet.maxfd + 1,
-         dyad_selectSet.fds[SELECT_READ],
-         dyad_selectSet.fds[SELECT_WRITE],
-         dyad_selectSet.fds[SELECT_EXCEPT],
+  select(triad_selectSet.maxfd + 1,
+         triad_selectSet.fds[SELECT_READ],
+         triad_selectSet.fds[SELECT_WRITE],
+         triad_selectSet.fds[SELECT_EXCEPT],
          &tv);
 
   /* Handle streams */
-  stream = dyad_streams;
+  stream = triad_streams;
   while (stream) {
     switch (stream->state) {
 
-      case DYAD_STATE_CONNECTED:
-        if (select_has(&dyad_selectSet, SELECT_READ, stream->sockfd)) {
+      case triad_STATE_CONNECTED:
+        if (select_has(&triad_selectSet, SELECT_READ, stream->sockfd)) {
           stream_handleReceivedData(stream);
-          if (stream->state == DYAD_STATE_CLOSED) {
+          if (stream->state == triad_STATE_CLOSED) {
             break;
           }
         }
         /* Fall through */
 
-      case DYAD_STATE_CLOSING:
-        if (select_has(&dyad_selectSet, SELECT_WRITE, stream->sockfd)) {
+      case triad_STATE_CLOSING:
+        if (select_has(&triad_selectSet, SELECT_WRITE, stream->sockfd)) {
           stream_flushWriteBuffer(stream);
         }
         break;
 
-      case DYAD_STATE_CONNECTING:
-        if (select_has(&dyad_selectSet, SELECT_WRITE, stream->sockfd)) {
+      case triad_STATE_CONNECTING:
+        if (select_has(&triad_selectSet, SELECT_WRITE, stream->sockfd)) {
           /* Check socket for error */
           int optval = 0;
           socklen_t optlen = sizeof(optval);
-          dyad_Event e;
+          triad_Event e;
           getsockopt(stream->sockfd, SOL_SOCKET, SO_ERROR, &optval, &optlen);
           if (optval != 0) goto connectFailed;
           /* Handle succeselful connection */
-          stream->state = DYAD_STATE_CONNECTED;
-          stream->lastActivity = dyad_getTime();
+          stream->state = triad_STATE_CONNECTED;
+          stream->lastActivity = triad_getTime();
           stream_initAddress(stream);
           /* Emit connect event */
-          e = createEvent(DYAD_EVENT_CONNECT);
+          e = createEvent(triad_EVENT_CONNECT);
           e.msg = "connected to server";
           stream_emitEvent(stream, &e);
         } else if (
-          select_has(&dyad_selectSet, SELECT_EXCEPT, stream->sockfd)
+          select_has(&triad_selectSet, SELECT_EXCEPT, stream->sockfd)
         ) {
           /* Handle failed connection */
 connectFailed:
@@ -775,8 +775,8 @@ connectFailed:
         }
         break;
 
-      case DYAD_STATE_LISTENING:
-        if (select_has(&dyad_selectSet, SELECT_READ, stream->sockfd)) {
+      case triad_STATE_LISTENING:
+        if (select_has(&triad_selectSet, SELECT_READ, stream->sockfd)) {
           stream_acceptPendingConnections(stream);
         }
         break;
@@ -785,8 +785,8 @@ connectFailed:
     /* If data was just now written to the stream we should immediately try to
      * send it */
     if (
-      stream->flags & DYAD_FLAG_WRITTEN &&
-      stream->state != DYAD_STATE_CLOSED
+      stream->flags & triad_FLAG_WRITTEN &&
+      stream->state != triad_STATE_CLOSED
     ) {
       stream_flushWriteBuffer(stream);
     }
@@ -796,7 +796,7 @@ connectFailed:
 }
 
 
-void dyad_init(void) {
+void triad_init(void) {
 #ifdef _WIN32
   WSADATA dat;
   int err = WSAStartup(MAKEWORD(2, 2), &dat);
@@ -810,26 +810,26 @@ void dyad_init(void) {
 }
 
 
-void dyad_shutdown(void) {
+void triad_shutdown(void) {
   /* Close and destroy all the streams */
-  while (dyad_streams) {
-    dyad_close(dyad_streams);
-    stream_destroy(dyad_streams);
+  while (triad_streams) {
+    triad_close(triad_streams);
+    stream_destroy(triad_streams);
   }
   /* Clear up everything */
-  select_deinit(&dyad_selectSet);
+  select_deinit(&triad_selectSet);
 #ifdef _WIN32
   WSACleanup();
 #endif
 }
 
 
-const char *dyad_getVersion(void) {
-  return DYAD_VERSION;
+const char *triad_getVersion(void) {
+  return triad_VERSION;
 }
 
 
-double dyad_getTime(void) {
+double triad_getTime(void) {
 #ifdef _WIN32
   FILETIME ft;
   GetSystemTimeAsFileTime(&ft);
@@ -842,23 +842,23 @@ double dyad_getTime(void) {
 }
 
 
-int dyad_getStreamCount(void) {
-  return dyad_streamCount;
+int triad_getStreamCount(void) {
+  return triad_streamCount;
 }
 
 
-void dyad_setTickInterval(double seconds) {
-  dyad_tickInterval = seconds;
+void triad_setTickInterval(double seconds) {
+  triad_tickInterval = seconds;
 }
 
 
-void dyad_setUpdateTimeout(double seconds) {
-  dyad_updateTimeout = seconds;
+void triad_setUpdateTimeout(double seconds) {
+  triad_updateTimeout = seconds;
 }
 
 
-dyad_PanicCallback dyad_atPanic(dyad_PanicCallback func) {
-  dyad_PanicCallback old = panicCallback;
+triad_PanicCallback triad_atPanic(triad_PanicCallback func) {
+  triad_PanicCallback old = panicCallback;
   panicCallback = func;
   return old;
 }
@@ -868,22 +868,22 @@ dyad_PanicCallback dyad_atPanic(dyad_PanicCallback func) {
 /* Stream                                                                    */
 /*---------------------------------------------------------------------------*/
 
-dyad_Stream *dyad_newStream(void) {
-  dyad_Stream *stream = dyad_realloc(NULL, sizeof(*stream));
+triad_Stream *triad_newStream(void) {
+  triad_Stream *stream = triad_realloc(NULL, sizeof(*stream));
   memset(stream, 0, sizeof(*stream));
-  stream->state = DYAD_STATE_CLOSED;
+  stream->state = triad_STATE_CLOSED;
   stream->sockfd = INVALID_SOCKET;
-  stream->lastActivity = dyad_getTime();
+  stream->lastActivity = triad_getTime();
   /* Add to list and increment count */
-  stream->next = dyad_streams;
-  dyad_streams = stream;
-  dyad_streamCount++;
+  stream->next = triad_streams;
+  triad_streams = stream;
+  triad_streamCount++;
   return stream;
 }
 
 
-void dyad_addListener(
-  dyad_Stream *stream, int event, dyad_Callback callback, void *udata
+void triad_addListener(
+  triad_Stream *stream, int event, triad_Callback callback, void *udata
 ) {
   Listener listener;
   listener.event = event;
@@ -893,8 +893,8 @@ void dyad_addListener(
 }
 
 
-void dyad_removeListener(
-  dyad_Stream *stream, int event, dyad_Callback callback, void *udata
+void triad_removeListener(
+  triad_Stream *stream, int event, triad_Callback callback, void *udata
 ) {
   int i = stream->listeners.length;
   while (i--) {
@@ -906,8 +906,8 @@ void dyad_removeListener(
 }
 
 
-void dyad_removeAllListeners(dyad_Stream *stream, int event) {
-  if (event == DYAD_EVENT_NULL) {
+void triad_removeAllListeners(triad_Stream *stream, int event) {
+  if (event == triad_EVENT_NULL) {
     vec_clear(&stream->listeners);
   } else {
     int i = stream->listeners.length;
@@ -920,17 +920,17 @@ void dyad_removeAllListeners(dyad_Stream *stream, int event) {
 }
 
 
-void dyad_close(dyad_Stream *stream) {
-  dyad_Event e;
-  if (stream->state == DYAD_STATE_CLOSED) return;
-  stream->state = DYAD_STATE_CLOSED;
+void triad_close(triad_Stream *stream) {
+  triad_Event e;
+  if (stream->state == triad_STATE_CLOSED) return;
+  stream->state = triad_STATE_CLOSED;
   /* Close socket */
   if (stream->sockfd != INVALID_SOCKET) {
     close(stream->sockfd);
     stream->sockfd = INVALID_SOCKET;
   }
   /* Emit event */
-  e = createEvent(DYAD_EVENT_CLOSE);
+  e = createEvent(triad_EVENT_CLOSE);
   e.msg = "stream closed";
   stream_emitEvent(stream, &e);
   /* Clear buffers */
@@ -939,23 +939,23 @@ void dyad_close(dyad_Stream *stream) {
 }
 
 
-void dyad_end(dyad_Stream *stream) {
-  if (stream->state == DYAD_STATE_CLOSED) return;
+void triad_end(triad_Stream *stream) {
+  if (stream->state == triad_STATE_CLOSED) return;
   if (stream->writeBuffer.length > 0) {
-    stream->state = DYAD_STATE_CLOSING;
+    stream->state = triad_STATE_CLOSING;
   } else {
-    dyad_close(stream);
+    triad_close(stream);
   }
 }
 
 
-int dyad_listenEx(
-  dyad_Stream *stream, const char *host, int port, int backlog
+int triad_listenEx(
+  triad_Stream *stream, const char *host, int port, int backlog
 ) {
   struct addrinfo hints, *ai = NULL;
   int err, optval;
   char buf[64];
-  dyad_Event e;
+  triad_Event e;
 
   /* Get addrinfo */
   memset(&hints, 0, sizeof(hints));
@@ -988,11 +988,11 @@ int dyad_listenEx(
     stream_error(stream, "socket failed on listen", errno);
     goto fail;
   }
-  stream->state = DYAD_STATE_LISTENING;
+  stream->state = triad_STATE_LISTENING;
   stream->port = port;
   stream_initAddress(stream);
   /* Emit listening event */
-  e = createEvent(DYAD_EVENT_LISTEN);
+  e = createEvent(triad_EVENT_LISTEN);
   e.msg = "socket is listening";
   stream_emitEvent(stream, &e);
   freeaddrinfo(ai);
@@ -1003,12 +1003,12 @@ int dyad_listenEx(
 }
 
 
-int dyad_listen(dyad_Stream *stream, int port) {
-  return dyad_listenEx(stream, NULL, port, 511);
+int triad_listen(triad_Stream *stream, int port) {
+  return triad_listenEx(stream, NULL, port, 511);
 }
 
 
-int dyad_connect(dyad_Stream *stream, const char *host, int port) {
+int triad_connect(triad_Stream *stream, const char *host, int port) {
   struct addrinfo hints, *ai = NULL;
   int err;
   char buf[64];
@@ -1030,7 +1030,7 @@ int dyad_connect(dyad_Stream *stream, const char *host, int port) {
                           ai->ai_protocol);
   if (err) goto fail;
   connect(stream->sockfd, ai->ai_addr, ai->ai_addrlen);
-  stream->state = DYAD_STATE_CONNECTING;
+  stream->state = triad_STATE_CONNECTING;
   freeaddrinfo(ai);
   return 0;
 fail:
@@ -1039,16 +1039,16 @@ fail:
 }
 
 
-void dyad_write(dyad_Stream *stream, const void *data, int size) {
+void triad_write(triad_Stream *stream, const void *data, int size) {
   const char *p = data;
   while (size--) {
     vec_push(&stream->writeBuffer, *p++);
   }
-  stream->flags |= DYAD_FLAG_WRITTEN;
+  stream->flags |= triad_FLAG_WRITTEN;
 }
 
 
-void dyad_vwritef(dyad_Stream *stream, const char *fmt, va_list args) {
+void triad_vwritef(triad_Stream *stream, const char *fmt, va_list args) {
   char buf[512];
   char *str;
   char f[] = "%_";
@@ -1106,54 +1106,54 @@ void dyad_vwritef(dyad_Stream *stream, const char *fmt, va_list args) {
     }
     fmt++;
   }
-  stream->flags |= DYAD_FLAG_WRITTEN;
+  stream->flags |= triad_FLAG_WRITTEN;
 }
 
 
-void dyad_writef(dyad_Stream *stream, const char *fmt, ...) {
+void triad_writef(triad_Stream *stream, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  dyad_vwritef(stream, fmt, args);
+  triad_vwritef(stream, fmt, args);
   va_end(args);
 }
 
 
-void dyad_setTimeout(dyad_Stream *stream, double seconds) {
+void triad_setTimeout(triad_Stream *stream, double seconds) {
   stream->timeout = seconds;
 }
 
 
-void dyad_setNoDelay(dyad_Stream *stream, int opt) {
+void triad_setNoDelay(triad_Stream *stream, int opt) {
   opt = !!opt;
   setsockopt(stream->sockfd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 }
 
 
-int dyad_getState(dyad_Stream *stream) {
+int triad_getState(triad_Stream *stream) {
   return stream->state;
 }
 
 
-const char *dyad_getAddress(dyad_Stream *stream) {
+const char *triad_getAddress(triad_Stream *stream) {
   return stream->address ? stream->address : "";
 }
 
 
-int dyad_getPort(dyad_Stream *stream) {
+int triad_getPort(triad_Stream *stream) {
   return stream->port;
 }
 
 
-int dyad_getBytesSent(dyad_Stream *stream) {
+int triad_getBytesSent(triad_Stream *stream) {
   return stream->bytesSent;
 }
 
 
-int dyad_getBytesReceived(dyad_Stream *stream) {
+int triad_getBytesReceived(triad_Stream *stream) {
   return stream->bytesReceived;
 }
 
 
-dyad_Socket dyad_getSocket(dyad_Stream *stream) {
+triad_Socket triad_getSocket(triad_Stream *stream) {
   return stream->sockfd;
 }

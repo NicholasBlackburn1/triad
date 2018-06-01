@@ -5,7 +5,7 @@ include:  ../src
 bin:      ../bin
 
 cflags:
-  - 'O1'
+  - 'O0'
   - Wall
   - std=c99
   - -g

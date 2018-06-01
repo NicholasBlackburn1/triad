@@ -1,35 +1,41 @@
 #include <stdio.h>
-#include "dyad.h"
+#include <string.h>
+#include "triad.h"
 
 /* Connects to a daytime server and prints the response */
 
-static void onConnect(dyad_Event *e) {
+static void onConnect(triad_Event *e) {
   printf("connected: %s\n", e->msg);
 }
 
-static void onError(dyad_Event *e) {
+static void onError(triad_Event *e) {
   printf("error: %s\n", e->msg);
 }
 
-static void onData(dyad_Event *e) {
+static void onData(triad_Event *e) {
   printf("%s", e->data);
+  triad_close(e->stream);
 }
 
 
 int main(void) {
-  dyad_Stream *s;
-  dyad_init();
+  triad_Stream *s;
+  triad_init();
 
-  s = dyad_newStream();
-  dyad_addListener(s, DYAD_EVENT_CONNECT, onConnect, NULL);
-  dyad_addListener(s, DYAD_EVENT_ERROR,   onError,   NULL);
-  dyad_addListener(s, DYAD_EVENT_DATA,    onData,    NULL);
-  dyad_connect(s, "time-nw.nist.gov", 13);
+  s = triad_newStream();
+  triad_addListener(s, triad_EVENT_CONNECT, onConnect, NULL);
+  triad_addListener(s, triad_EVENT_ERROR,   onError,   NULL);
+  triad_addListener(s, triad_EVENT_DATA,    onData,    NULL);
+  triad_connect(s, "127.0.0.1", 8081);
 
-  while (dyad_getStreamCount() > 0) {
-    dyad_update();
+  char *header = "GET /index.html HTTP/1.1\r\nHost: www.example.com\r\n\r\n";
+
+  triad_write(s, header, strlen(header));
+
+  while (triad_getStreamCount() > 0) {
+    triad_update();
   }
-  
-  dyad_shutdown();
+
+  triad_shutdown();
   return 0;
 }
