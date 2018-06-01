@@ -12,4 +12,10 @@ int main() {
   printf("spanish: %s\n", (char*)vector_get(&v, 2));
   vector_delete(&v, 2);
   printf("italian: %s\n", (char*)vector_get(&v, 2));
+  vector_add(&v, "hallo");
+  vector_add(&v, "Здравствуйте");
+  printf("russian: %s\n", (char*)vector_get(&v, v.total - 1));
+  vector_delete(&v, 0);
+  vector_delete(&v, 1);
+  vector_delete(&v, 2);
 }

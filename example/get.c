@@ -25,7 +25,7 @@ int main(void) {
   triad_addListener(s, triad_EVENT_CONNECT, onConnect, NULL);
   triad_addListener(s, triad_EVENT_ERROR,   onError,   NULL);
   triad_addListener(s, triad_EVENT_DATA,    onData,    NULL);
-  triad_connect(s, "127.0.0.1", 8081);
+  triad_connect(s, "127.0.0.1", 8080);
 
   char *header = "GET /index.html HTTP/1.1\r\nHost: www.example.com\r\n\r\n";
 

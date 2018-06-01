@@ -284,7 +284,8 @@ struct triad_Stream {
   int port;
   int bytesSent, bytesReceived;
   double lastActivity, timeout;
-  Vec(Listener) listeners;
+  vector n_listeners;
+  Vec(char) listeners;
   Vec(char) lineBuffer;
   Vec(char) writeBuffer;
   triad_Stream *next;
@@ -874,6 +875,7 @@ triad_Stream *triad_newStream(void) {
   stream->state = triad_STATE_CLOSED;
   stream->sockfd = INVALID_SOCKET;
   stream->lastActivity = triad_getTime();
+  stream->listers = VECTOR_INIT
   /* Add to list and increment count */
   stream->next = triad_streams;
   triad_streams = stream;
