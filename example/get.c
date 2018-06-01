@@ -17,7 +17,6 @@ static void onData(triad_Event *e) {
   triad_close(e->stream);
 }
 
-
 int main(void) {
   triad_Stream *s;
   triad_init();
